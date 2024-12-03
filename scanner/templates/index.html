@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Port Scanner</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 50px auto; text-align: center; background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        input, select { padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #ddd; width: 80%; margin-bottom: 20px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 5px; }
+        .result { margin-top: 20px; color: green; }
+        #loading { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to Port Scanner</h1>
+        <input type="text" id="target_ip" placeholder="Enter IP Address" />
+        <input type="number" id="start_port" placeholder="Start Port" min="1" />
+        <input type="number" id="end_port" placeholder="End Port" min="1" />
+        <input type="number" id="threads" placeholder="Number of Threads" min="1" />
+        <button onclick="startScan()">Start Scanning</button>
+        <div id="loading">Scanning in progress...</div>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        function startScan() {
+            const ip = document.getElementById("target_ip").value;
+            const startPort = document.getElementById("start_port").value;
+            const endPort = document.getElementById("end_port").value;
+            const threads = document.getElementById("threads").value;
+
+            if (ip && startPort && endPort && threads) {
+                document.getElementById("loading").style.display = "block";  // Show loading symbol
+                document.getElementById("result").innerText = "Scanning started for IP: " + ip;
+
+                const data = {
+                    target_ip: ip,
+                    start_port: startPort,
+                    end_port: endPort,
+                    threads: threads
+                };
+
+                fetch("/scan", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "Scanning started") {
+                        checkScanResults();  // Start checking for results
+                    } else {
+                        document.getElementById("loading").style.display = "none";
+                        document.getElementById("result").innerText = "Error: " + data.error;
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    document.getElementById("loading").style.display = "none";
+                    document.getElementById("result").innerText = "An error occurred.";
+                });
+            } else {
+                alert("Please fill in all fields.");
+            }
+        }
+
+        function checkScanResults() {
+            const interval = setInterval(() => {
+                fetch("/results")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === "Scan Complete") {
+                            clearInterval(interval);  // Stop polling once the scan is complete
+                            document.getElementById("loading").style.display = "none";
+                            if (data.open_ports && data.open_ports.length > 0) {
+                                document.getElementById("result").innerText = "Open Ports: " + data.open_ports.join(", ");
+                            } else {
+                                document.getElementById("result").innerText = "No open ports found.";
+                            }
+                        } else {
+                            document.getElementById("result").innerText = data.message;
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error:", error);
+                        clearInterval(interval);
+                        document.getElementById("loading").style.display = "none";
+                        document.getElementById("result").innerText = "Error occurred.";
+                    });
+            }, 2000);  // Poll every 2 seconds
+        }
+    </script>
+</body>
+</html>
